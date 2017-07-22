@@ -76,18 +76,52 @@ SOFTWARE.
 			//type ==== string
 			//options === object
 			this.element = element;
+			this.id = 0;//this is id number of this plugin on $(node).data()
 			this.$el = $(element);//element wrapped by jquery
 			this.responsive = {
 				"init":{},
 				keys:[]//keys will hold key of breakporints as a number and this will be sorted ascending
 			};//if break points is set this will hold settings for all breakpoints
 			this.wrapper = null;//wrapper element for dots
+			this.wrpClass = "";//class name for wrapper object
 			this.type = type;
 			this.target = null;//target element for "line"
 			settings = $.extend({},_defaults,options);
 			this.settings = $.extend({},_defaults,options);
 			this._defaults = _defaults;
 			this._name = _pluginName;
+			
+			
+			this.destroy = function(){
+				var data = $.data( this.element , "plugin_" + _pluginName );
+				
+				if(this.wrapper){
+					this.element.removeChild( this.wrapper );	
+				}
+				this.wrapper = null;
+				
+				this.$el = null;
+				this.responsive = null;
+				this.settings = null;
+				settings = null;
+				this.target = null;
+				this._defaults = null;
+				this.selfRebuild = function(){};
+				
+				//remove plugin from node.data object
+				/*
+				delete data[this.id];
+				data.length -=1;*/
+				
+				data[this.id] = null;
+				$.data( this.element , "plugin_" + _pluginName, data );
+				
+
+				this.element = null;
+				return true;
+				
+				
+			};
 			
 			//check target element
 			if(this.settings.target){
@@ -130,6 +164,9 @@ SOFTWARE.
 			}
 			
 			
+			
+			//check for wrapper classs
+			this.wrpClass = _wrpClass + this.checkWrpClass( this.element );
 			
 
 			this.init();
@@ -196,7 +233,7 @@ SOFTWARE.
 				//create container element on start position
 				wrp = document.createElement( wrp );
 				
-				wrp.setAttribute("class",_wrpClass);
+				wrp.setAttribute("class",this.wrpClass);
 				wrp.style.position = "absolute";
 				wrp.style.top = ( s.top - hostDim.top ) + "px";
 				wrp.style.left = ( s.left - hostDim.left) + "px";
@@ -252,7 +289,7 @@ SOFTWARE.
 				
 				//create container element on start position
 				wrp = document.createElement( wrp );
-				wrp.setAttribute("class",_wrpClass);
+				wrp.setAttribute("class",this.wrpClass);
 				wrp.style.position = "absolute";
 				wrp.style.top = ( s.top - hostDim.top ) + "px";
 				wrp.style.left = ( s.left - hostDim.left) + "px";
@@ -285,8 +322,8 @@ SOFTWARE.
 					endM,//margin at the end point
 					distance,//distance between start and end points
 					len,//how many dots will be created
-					attr,//object that will hold node attribute list
-					style,//object that will hold node style list
+					attr,//object that will hold attribute list of node
+					style,//object that will hold style list of node
 					inner,//innerHTML for every node
 					i = 0,
 					lastPos,//position of last created node
@@ -306,8 +343,7 @@ SOFTWARE.
 					"height":dim + "px"	
 				};
 				
-				//get inner HTML
-				inner = this.settings.dotInnerHTML;
+				
 				
 				
 				
@@ -345,6 +381,10 @@ SOFTWARE.
 					style.left = (Math.round(style.left * 100)/100).toFixed(2) + "px";
 					
 					attr["class"] = _class + i;
+					
+					//get inner HTML
+					inner = this.getInnerHTML( i );
+					
 					//create and append node
 					wrp.appendChild( _util.createNode( _dotTag, attr, style, inner ) );
 					
@@ -399,8 +439,6 @@ SOFTWARE.
 					"height":dim + "px"	
 				};
 				
-				//get inner HTML
-				inner = this.settings.dotInnerHTML;
 				
 				
 				
@@ -464,6 +502,9 @@ SOFTWARE.
 					
 
 					attr["class"] = _class + i;
+					
+					//get inner HTML
+					inner = this.getInnerHTML( i );
 					
 					//create and append node
 					wrp.appendChild( _util.createNode( _dotTag, attr, style, inner ) );
@@ -557,6 +598,9 @@ SOFTWARE.
 					style.left += "px";
 
 					attr["class"] = _class+i;
+					
+					//get inner HTML
+					inner = this.getInnerHTML( i );
 					
 					//create and append node
 					wrp.appendChild( _util.createNode( _dotTag, attr, style, inner ) );
@@ -701,6 +745,9 @@ SOFTWARE.
 					style.left = x +"px"; 
 
 					attr["class"] = _class+i;
+					
+					//get inner HTML
+					inner = this.getInnerHTML( i );
 					
 					//create and append node
 					wrp.appendChild( _util.createNode( _dotTag, attr, style, inner ) );
@@ -940,6 +987,48 @@ SOFTWARE.
 				
 				return curOpt;	
 			},
+			checkWrpClass:function( host ){
+				//function will check there is any wrp element added by another instant of dotter
+				//and return a number for current wraper
+				//host === host element that dotter instance had been  added
+				var class_,//class list for current node
+					reg = /dotter-wrp(\d+)/i,
+					wrpIndex = 0,//index number for this.wrapper object
+					nLen,//node list lenght
+					i = 0,//for node list loop
+					ii = 0,//for class list loop
+					cLen,//classes lenght
+					test,//it holds matches for regex
+					curNode,//current node
+					nodes;//child nodes of host element
+				
+				nodes = host.childNodes;
+				nLen = nodes.length;
+				
+				//check for wrapper element
+				for( ; i < nLen ; i++){
+					curNode = nodes[i];
+					class_ = curNode.className;
+					if(typeof class_ === "string"){
+						class_ = class_.split(" ");
+						cLen = class_.length;
+						
+						//check reg on each class
+						for( ; ii < cLen ; ii++){
+							test = class_[ii].match(reg);
+							//if there is a match get last index
+							if(test){
+								wrpIndex = parseInt( test[1], 10 )+1;
+							}
+						}
+						//reset ii
+						ii = 0;
+					}
+				}
+
+				return wrpIndex;
+
+			},
 			setOptions:function( options ){
 				var k ;//key holder in for loop
 				
@@ -957,15 +1046,41 @@ SOFTWARE.
 			},
 			onWindowResize:function( keys ){
 				//keys === array that holds breakpoint positions if there is
-				var self = this,
-					options;
-				
+				var self = this;
+
 				$(window).on("resize",function(){
-					options = self.getCurrentOptions( keys );
-					//rebuild 
-					self.rebuild( options );
+					self.selfRebuild( keys );
 				});
-			}
+			},
+			selfRebuild:function( keys ){
+				var options;
+				//keys === array that holds breakpoint positions if there is
+				options = this.getCurrentOptions( keys );
+					//rebuild 
+				this.rebuild( options );	
+			},
+			getInnerHTML:function( index ){
+				//this function will check this.settings.dotInnerHTML property
+				//if it is string function will return it's value directly
+				//if  it is a function this function will call that function as a callBack method
+				//ant will pass index argument to it.
+				
+				var inner = this.settings.dotInnerHTML;
+				
+				if(typeof inner === "string"){
+					return inner;
+				}
+				
+				if(typeof inner === "function"){
+					return inner( index );
+				}
+				
+				// for all other probability
+				
+				return "";
+			},
+			
+			
 
 		});
 		
@@ -1067,8 +1182,10 @@ SOFTWARE.
 		
 
 		$.fn[ _pluginName ] = function( type, options ){
-			var lastPlugin;//birden fazla node var ise her biri için plugin yaratıldıktan sonra
+			var lastPlugin,//birden fazla node var ise her biri için plugin yaratıldıktan sonra
 			//son yaratılan plugin return değeri olarak döndürülür.
+				saved,//if there is object in node.data this will hold it
+				len = 0;
 			
 			//parametre kontrol
 			
@@ -1079,16 +1196,39 @@ SOFTWARE.
 
 
 			this.each(function(){
+				//create new plugin
+				lastPlugin = new PLUGIN( this, type, options );
 				
+				//if there is no existing object
 				if(!$.data( this , "plugin_" + _pluginName )){
+
+					$.data( this , "plugin_" + _pluginName, {
+							0:lastPlugin,
+							length:1
+						});
 					
-					//save last created plugin for return value
+				}
+				//if there is an object
+				else{
+					//get existing object
+					saved = $.data( this , "plugin_" + _pluginName );
+					len = saved.length;
 					
-					lastPlugin = new PLUGIN( this, type, options );
-					//$.data( this , "plugin_" + _pluginName, lastPlugin);
+					saved.length +=1;
+					
+					lastPlugin.id = len;
+					
+					//add lastPlugin to exisisting object
+					saved[len] = lastPlugin;
+					
+					//alter the node data with new object
+					$.data( this , "plugin_" + _pluginName ,saved );
 					
 				}
 			});
+			
+			saved = null;
+			options = null;
 			
 			return lastPlugin;
 			
@@ -1100,3 +1240,8 @@ SOFTWARE.
 	
 	
 })(jQuery, window, document);
+
+/*BROSWER SUPPORT*/
+//1.12.4 jQuery
+//_util.getNodeDimensions()
+//firefox 3.5     safari 4.0   ie8    // android 2.0 ie mobile 6.0 
